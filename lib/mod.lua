@@ -1,16 +1,29 @@
--- bleached 10 bit midi to OSC
+-- bleached >7 bit midi to param mapping
 
 local mod = require 'core/mods'
 
-include("/14b-mod/lib/_midi")
-include("/14b-mod/lib/_params")
+-- Includes not needed for mod.
+-- include("/14b-mod/lib/_midi")
+-- include("/14b-mod/lib/_params")
 
 local n = {}
 
 -- MIDI
 local m = {}
-  
--- midi channels in order of MSB - LSB
+
+--[[
+---   SETUP AREA ---
+This mod is meant to work with a custom bleached firmware providing 14 bit midi 
+(but in reality only 12 bits, due to Teensy LC read resolution).
+
+For robustness and compatibility the user would have to tweak their own midi MSB/LSB channel routing below
+in the array midi_channels, if other devices are used. Array can be any size, as long as it has valid channel pairs.
+
+As midi channels are upscaled in bleached firmware, the user can also downscale the resolution of incoming midi to the correct bit size,
+tweaking the BIT_RESOLUTION variable.
+--]]
+
+-- midi channel array with pairs of of {MSB, LSB}
 local midi_channels = {
   {102, 103},
   {104, 105},
@@ -20,45 +33,67 @@ local midi_channels = {
   {112, 113},
   {114, 115}
 }
+-- wanted resolution of midi controller
+-- from bleached 
+local BIT_RESOLUTION = 12 -- 7 to 14 should be valid.
 
-local BIT_RESOLUTION = 12
+--[[
+---   SETUP AREA END ---
+--]]
+
+-- empty tables, decleared, to be filled in hooks
 local midi_table = {}
 local p_list = {}
+local p_index = 1 -- current index of p_list
+
+-- some variables
 local max_bits = 1 << BIT_RESOLUTION
 local map_mode = false
-local p_index = 1
+local save_mode = false
+local last_msb = 0
+local last_cc = 0
+local current_script
 
+-- The mapped presets
 local mapped = {} --empty map, should be able to be saved and loaded upon script load.
+
+
+-- MOD HOOKS
 mod.hook.register("system_post_startup", "midi_tools", function()
   m = _norns.midi.add()
-  midi_table = _midi.generate_table(midi_channels)
-  max_bits = 1 << BIT_RESOLUTION
-  map_mode = false
-  p_index = 1
-  p_list = _params.generate_list()
+  midi_table = n.generate_table(midi_channels)
+  -- max_bits = 1 << BIT_RESOLUTION
+  -- map_mode = false
+  -- p_index = 1
+  p_list = n.generate_list()
 end)
 
 mod.hook.register("script_pre_init", "param_grab", function()
+  m = _norns.midi.add()
   -- tweak global environment here ahead of the script `init()` function being called
-  p_list = _params.generate_list() --generates indexed list of available params
+  p_list = n.generate_list() --generates indexed list of available params
   p_index = 1
+  current_script = norns.state.name
 end)
 
+--[[
+mod.hook.register("script_pre_init", "param_grab", function()
+  m = _norns.midi.add()
+  -- tweak global environment here ahead of the script `init()` function being called
+  p_list = n.generate_list() --generates indexed list of available params
+  p_index = 1
+  current_script = norns.state.name
+end)
+--]]
+
+-- init/deinit functions
 n.init = function()
-  p_list = _params.generate_list() --generates indexed list of available params
-end
+  --
+end --on init 
 
-
--- MIDI
-local last_msb = 0
-local last_cc = 0
-local current_val = 0
-
-_norns.midi.event = function(id, data)
-	local d = midi.to_msg(data)
-	_midi.msghandler(d)
-end
-
+n.deinit = function() 
+  screen.clear()  
+end -- on menu exit
 
 
 -- ENC FUNCTIONS
@@ -81,11 +116,13 @@ n.key = function(k, z)
     save_mode = z
   elseif k == 3 and z == 1 and save_mode then
     -- write script map to disk
+    n.save_maps()
   elseif k == 2 and z == 1 and save_mode then
     -- load script map from disk
+    n.load_maps()
   elseif k == 3 and z == 1 then
     if map_mode == false then
-      local mappable = _params.checkmap(p_index)
+      local mappable = n.checkmap(p_index)
       if mappable then
         map_mode = true
       else
@@ -145,30 +182,26 @@ n.redraw = function()
   screen.update()
 end
 
-n.deinit = function() 
-  screen.clear()  
-end -- on menu exit
+--- parameter functions
 
-
---- _params
-
-_params = {}
-
-function _params.generate_list()
-  -- generates list of available parameters by name
-  local p_list = {}
+function n.generate_list()
+  -- generates a table of available parameters by name
+  -- should be called upon norns startup and script start
+  local list = {}
   for i = 1, #params.params do
-    p_list[i] = params.params[i].id
+    list[i] = params.params[i].id
   end
-  return p_list
+  return list
 end
 
 
-function _params.map(note, index)
-  mapped[note] = index  
+function n.map(note, index)
+  -- maps midi note to preset index
+  mapped[note] = index
 end
 
-function _params.checkmap(inx)
+function n.checkmap(inx)
+  -- checks if parameter type in list is mappable
   local mappable
   local type = params:t(inx)
   if type == 1 or type == 2 or type == 3 or type == 5 or type == 6 then
@@ -180,12 +213,11 @@ function _params.checkmap(inx)
 end
 
 
--- Function for looking up mapped params and scale input accordingly.
--- Borrowed and modified from jaseknighter's osc-mod (https://github.com/jaseknighter/osc-mod/)
-function _params.lookup(note, val)
+function n.lookup(note, val)
+  -- Function for looking up mapped params and scale input accordingly.
+  -- Code is borrowed and modified from jaseknighter's osc-mod 
+  -- (found at https://github.com/jaseknighter/osc-mod/)
   local param = mapped[note]
-  print(note)
-  -- local param = params:lookup_param(param)
 
   -- param types
   -- 0: separator
@@ -196,6 +228,7 @@ function _params.lookup(note, val)
   -- 6: trigger
   -- 7: group
   -- 8: text
+
   if param then
     local type = params:t(param)
     local min, max, mapped_val
@@ -227,13 +260,16 @@ function _params.lookup(note, val)
 end
 
 
--- _midi
-
-_midi = {}
 -- midi functions
 
-function _midi.generate_table(channels)
+_norns.midi.event = function(id, data)
+  local d = midi.to_msg(data)
+  n.msghandler(d)
+end
+
+function n.generate_table(channels)
   -- generates an associative table of MSB and LSB pairs
+  
   local table = {}
   for i = 1, #channels do
     table[channels[i][1]] = channels[i][2]
@@ -242,8 +278,11 @@ function _midi.generate_table(channels)
 end
 
 
-function _midi.msghandler(d)
-  -- determines MSB or LSB
+function n.msghandler(d)
+  -- if map_mode = true, maps next midi msb to param
+  -- if not map_mode, determines MSB or LSB of a preset midi pair 
+  -- and sends value to mapped parameter
+  
   if d.type == "cc" then
     if map_mode == true then
       -- map selected param to midi channel
@@ -262,12 +301,69 @@ function _midi.msghandler(d)
 			  last_msb = d.val << 7
 		  elseif d.cc == midi_table[last_cc] then
 			  -- LSB
-			  local b_val = last_msb | d.val
-			  current_val = b_val >> (14 - BIT_RESOLUTION)
-			  _params.lookup(last_cc, current_val)
+			  local full_val = last_msb | d.val
+			  local scaled_val = full_val >> (14 - BIT_RESOLUTION)
+			  n.lookup(last_cc, scaled_val)
 		  end
 		end
 	end
 end
 
+-- Save/load mappings
+
+function n.save_maps()
+  local save_name
+  if current_script then
+    save_name = current_script
+  else
+    save_name = "none"
+  tab.save(mapped, _path.data .. "14b-mod/" .. save_name .. .txt)
+end
+
+function n.load_maps()
+  local load_name
+  if current_script then
+    load_name = current_script
+  else
+    load_name = "none"
+  mapped = tab.load(_path.data .. "14b-mod/" .. load_name .. .txt)
+end
+
+function n.reset_maps()
+  mapped = {}
+end
+
+
+-- register the mod menu
+--
+-- NOTE: `mod.this_name` is a convienence variable which will be set to the name
+-- of the mod which is being loaded. in order for the menu to work it must be
+-- registered with a name which matches the name of the mod in the dust folder.
+--
 mod.menu.register(mod.this_name, n)
+
+
+--
+-- [optional] returning a value from the module allows the mod to provide
+-- library functionality to scripts via the normal lua `require` function.
+--
+-- NOTE: it is important for scripts to use `require` to load mod functionality
+-- instead of the norns specific `include` function. using `require` ensures
+-- that only one copy of the mod is loaded. if a script were to use `include`
+-- new copies of the menu, hook functions, and state would be loaded replacing
+-- the previous registered functions/menu each time a script was run.
+--
+-- here we provide a single function which allows a script to get the mod's
+-- state table. using this in a script would look like:
+--
+-- local mod = require 'name_of_mod/lib/mod'
+-- local the_state = mod.get_state()
+--
+
+local api = {}
+
+api.get_state = function()
+  return state
+end
+
+return api

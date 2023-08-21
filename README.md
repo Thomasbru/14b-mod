@@ -1,7 +1,7 @@
 # 14b-mod
 norns mod for mapping 14-bit midi to params
 
-usage: takes up to 14 bits of midi (2 channels) and maps them to parameters
+usage: takes up to 14 bits of midi (2 channels) and maps them to general and script specific parameters
 
 # setup:
 	in script
@@ -24,7 +24,7 @@ usage: takes up to 14 bits of midi (2 channels) and maps them to parameters
 	K1 + K3 saves mappings
 	K1 + K2 loads mappings
 
-midi device is saved on exit mod menu, mappings are saved on a per script basis
+midi device is saved on exit mod menu, mappings are saved on a per script basis in the folder /data/14b-mod/
 
 
 

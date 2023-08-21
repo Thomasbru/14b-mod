@@ -8,9 +8,6 @@ local mod = require 'core/mods'
 
 local n = {}
 
--- MIDI
-local m = {}
-
 --[[
 ---   SETUP AREA ---
 This mod is meant to work with a custom bleached firmware providing 14 bit midi 
@@ -36,7 +33,6 @@ local midi_channels = {
 -- wanted resolution of midi controller
 -- from bleached 
 local BIT_RESOLUTION = 12 -- 7 to 14 should be valid.
-
 --[[
 ---   SETUP AREA END ---
 --]]
@@ -47,9 +43,10 @@ local p_list = {}
 local p_index = 1 -- current index of p_list
 
 -- some variables
+local midi_device
 local max_bits = 1 << BIT_RESOLUTION
 local map_mode = false
-local save_mode = false
+local save_mode = 0
 local last_msb = 0
 local last_cc = 0
 local current_script
@@ -59,52 +56,60 @@ local mapped = {} --empty map, should be able to be saved and loaded upon script
 
 
 -- MOD HOOKS
-mod.hook.register("system_post_startup", "midi_tools", function()
-  m = _norns.midi.add()
+mod.hook.register("system_post_startup", "list_generation", function()
   midi_table = n.generate_table(midi_channels)
-  -- max_bits = 1 << BIT_RESOLUTION
-  -- map_mode = false
-  -- p_index = 1
+  current_script = "none"
+  if util.file_exists(_path.data .. "14b-mod/midi_device.txt") then
+    midi_device = n.load_midi_device()
+  else
+    midi_device = 2
+  end
+end)
+
+mod.hook.register("script_pre_init", "param_grab", function()
+  -- tweak global environment here ahead of the script `init()` function being called
+  p_index = 1
+  current_script = norns.state.name
+  local old_init = init
+  init = function()
+    old_init()
+    -- Do your post-init stuff here
+    p_list = n.generate_list()
+    n.load_maps()
+  end
+end)
+
+mod.hook.register("script_post_cleanup", "cleanup", function()
+  current_script = "none"
   p_list = n.generate_list()
 end)
 
-mod.hook.register("script_pre_init", "param_grab", function()
-  m = _norns.midi.add()
-  -- tweak global environment here ahead of the script `init()` function being called
-  p_list = n.generate_list() --generates indexed list of available params
-  p_index = 1
-  current_script = norns.state.name
-end)
-
---[[
-mod.hook.register("script_pre_init", "param_grab", function()
-  m = _norns.midi.add()
-  -- tweak global environment here ahead of the script `init()` function being called
-  p_list = n.generate_list() --generates indexed list of available params
-  p_index = 1
-  current_script = norns.state.name
-end)
---]]
-
 -- init/deinit functions
 n.init = function()
-  --
+  if #p_list == 0 then
+      p_list = n.generate_list()
+  end
 end --on init 
 
 n.deinit = function() 
-  screen.clear()  
+  map_mode = false
+  n.save_midi_device()
+  screen.clear()
 end -- on menu exit
 
 
 -- ENC FUNCTIONS
 -- enc 3 changes parameter index
 n.enc = function(e, d)
-  if e == 3 then
-    p_index = util.clamp(p_index + d, 1, #p_list)
+  if map_mode == false then
+    if e == 3 then
+      p_index = util.clamp(p_index + d, 1, #p_list)
+    elseif e == 2 then
+      midi_device = util.clamp(midi_device + d, 1, #midi.devices)
+    end
     n.redraw()
   end
 end
-
 
 -- KEY FUNCTIONS
 -- K1 + K2 loads map
@@ -114,10 +119,10 @@ end
 n.key = function(k, z)
   if k == 1 then
     save_mode = z
-  elseif k == 3 and z == 1 and save_mode then
+  elseif k == 3 and z == 1 and save_mode == 1 then
     -- write script map to disk
     n.save_maps()
-  elseif k == 2 and z == 1 and save_mode then
+  elseif k == 2 and z == 1 and save_mode == 1 then
     -- load script map from disk
     n.load_maps()
   elseif k == 3 and z == 1 then
@@ -139,6 +144,8 @@ n.key = function(k, z)
   end
 end
 
+
+-- REDRAWS
 n.redraw_notmap = function()
   screen.clear()
   screen.move(0, 40)
@@ -154,7 +161,7 @@ n.redraw = function()
   screen.level(15)
   screen.text("params/")
   screen.move(128, 5)
-  screen.text_right("midi")
+  screen.text_right("midi/" .. midi.devices[midi_device].name)
   -- list all params
   for i = 0, 5 do
     screen.move(0, 20 + (10*i))
@@ -261,10 +268,14 @@ end
 
 
 -- midi functions
+local midi_event = _norns.midi.event
 
-_norns.midi.event = function(id, data)
-  local d = midi.to_msg(data)
-  n.msghandler(d)
+function _norns.midi.event(id, data)
+  midi_event(id, data)
+  if id == midi_device then 
+    local d = midi.to_msg(data)
+    n.msghandler(d)
+  end
 end
 
 function n.generate_table(channels)
@@ -288,7 +299,7 @@ function n.msghandler(d)
       -- map selected param to midi channel
       for j, k in pairs(mapped) do
         if k == p_index then
-          tab.remove(mapped, j)
+          mapped[j] = nil
         end
       end
       mapped[d.cc] = p_index
@@ -309,6 +320,19 @@ function n.msghandler(d)
 	end
 end
 
+function n.load_midi_device()
+  local md = tab.load(_path.data .. "14b-mod/midi_device.txt")
+  return md[1]
+end
+
+function n.save_midi_device()
+  local md = {}
+  md[1] = midi_device
+  tab.save(md, _path.data .. "14b-mod/midi_device.txt")
+end
+
+
+
 -- Save/load mappings
 
 function n.save_maps()
@@ -317,7 +341,8 @@ function n.save_maps()
     save_name = current_script
   else
     save_name = "none"
-  tab.save(mapped, _path.data .. "14b-mod/" .. save_name .. .txt)
+  end
+  tab.save(mapped, _path.data .. "14b-mod/" .. save_name .. ".txt")
 end
 
 function n.load_maps()
@@ -326,7 +351,10 @@ function n.load_maps()
     load_name = current_script
   else
     load_name = "none"
-  mapped = tab.load(_path.data .. "14b-mod/" .. load_name .. .txt)
+  end
+  if util.file_exists(_path.data .. "14b-mod/" .. load_name .. ".txt") then
+    mapped = tab.load(_path.data .. "14b-mod/" .. load_name .. ".txt")
+  end
 end
 
 function n.reset_maps()
@@ -341,29 +369,3 @@ end
 -- registered with a name which matches the name of the mod in the dust folder.
 --
 mod.menu.register(mod.this_name, n)
-
-
---
--- [optional] returning a value from the module allows the mod to provide
--- library functionality to scripts via the normal lua `require` function.
---
--- NOTE: it is important for scripts to use `require` to load mod functionality
--- instead of the norns specific `include` function. using `require` ensures
--- that only one copy of the mod is loaded. if a script were to use `include`
--- new copies of the menu, hook functions, and state would be loaded replacing
--- the previous registered functions/menu each time a script was run.
---
--- here we provide a single function which allows a script to get the mod's
--- state table. using this in a script would look like:
---
--- local mod = require 'name_of_mod/lib/mod'
--- local the_state = mod.get_state()
---
-
-local api = {}
-
-api.get_state = function()
-  return state
-end
-
-return api

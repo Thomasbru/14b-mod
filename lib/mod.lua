@@ -43,7 +43,8 @@ local p_list = {}
 local p_index = 1 -- current index of p_list
 
 -- some variables
-local midi_device
+local current_midi_device
+local midi_devices = {}
 local max_bits = 1 << BIT_RESOLUTION
 local map_mode = false
 local save_mode = 0
@@ -59,11 +60,13 @@ local mapped = {} --empty map, should be able to be saved and loaded upon script
 mod.hook.register("system_post_startup", "list_generation", function()
   midi_table = n.generate_table(midi_channels)
   current_script = "none"
+  local loaded_midi_device
   if util.file_exists(_path.data .. "14b-mod/midi_device.txt") then
-    midi_device = n.load_midi_device()
+    loaded_midi_device = n.load_midi_device()
   else
-    midi_device = 2
+    loaded_midi_device = 2
   end
+  n.get_midi_devices(loaded_midi_device)
 end)
 
 mod.hook.register("script_pre_init", "param_grab", function()
@@ -105,7 +108,7 @@ n.enc = function(e, d)
     if e == 3 then
       p_index = util.clamp(p_index + d, 1, #p_list)
     elseif e == 2 then
-      midi_device = util.clamp(midi_device + d, 1, #midi.devices)
+      current_midi_device = util.clamp(current_midi_device + d, 1, #midi_devices)
     end
     n.redraw()
   end
@@ -169,7 +172,8 @@ n.redraw = function()
   screen.level(15)
   screen.text("params/")
   screen.move(128, 5)
-  screen.text_right("midi/" .. midi.devices[midi_device].name)
+  local midi_index = midi_devices[current_midi_device]
+  screen.text_right("midi/" .. midi.devices[midi_index].name)
   -- list all params
   for i = 0, 5 do
     screen.move(0, 20 + (10*i))
@@ -332,6 +336,19 @@ function n.msghandler(d)
 	end
 end
 
+function n.get_midi_devices(lmd)
+  for n, j in pairs(midi.devices) do
+    table.insert(midi_devices, n)
+    if midi.devices[n].id == lmd then
+      current_midi_device = #midi_devices
+    end
+  end
+  if current_midi_device == nil then
+    current_midi_device = 1
+  end
+end
+
+
 function n.load_midi_device()
   local md = tab.load(_path.data .. "14b-mod/midi_device.txt")
   return md[1]
@@ -339,7 +356,7 @@ end
 
 function n.save_midi_device()
   local md = {}
-  md[1] = midi_device
+  md[1] = midi_devices[current_midi_device]
   tab.save(md, _path.data .. "14b-mod/midi_device.txt")
 end
 
@@ -381,3 +398,11 @@ end
 -- registered with a name which matches the name of the mod in the dust folder.
 --
 mod.menu.register(mod.this_name, n)
+
+local api = {}
+
+api.get_table = function()
+  return midi_devices
+end
+
+return api

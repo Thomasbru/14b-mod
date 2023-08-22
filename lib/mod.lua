@@ -2,10 +2,6 @@
 
 local mod = require 'core/mods'
 
--- Includes not needed for mod.
--- include("/14b-mod/lib/_midi")
--- include("/14b-mod/lib/_params")
-
 local n = {}
 
 --[[

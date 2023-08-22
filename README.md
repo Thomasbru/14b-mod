@@ -5,7 +5,7 @@ usage: takes up to 14 bits of midi (2 channels) and maps them to general and scr
 
 # setup:
 	in script
-	change function/table generating MSB - LSB list
+	change function/table generating MSB - LSB list to match your midi device
 	currently hardcoded from bleached alternate firmware,
 	hosted at https://github.com/Thomasbru/bleached
 

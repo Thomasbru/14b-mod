@@ -2,10 +2,6 @@
 
 local mod = require 'core/mods'
 
--- Includes not needed for mod.
--- include("/14b-mod/lib/_midi")
--- include("/14b-mod/lib/_params")
-
 local n = {}
 
 --[[
@@ -398,11 +394,3 @@ end
 -- registered with a name which matches the name of the mod in the dust folder.
 --
 mod.menu.register(mod.this_name, n)
-
-local api = {}
-
-api.get_table = function()
-  return midi_devices
-end
-
-return api

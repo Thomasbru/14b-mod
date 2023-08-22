@@ -19,8 +19,10 @@ usage: takes up to 14 bits of midi (2 channels) and maps them to parameters
 	currently all addresses are mapped from same device
 
 	K2 exits mod menu
-	K3 makes parameter mappable
-		midi input maps parameter, K2 again exits
+	K3 makes parameter mappable (*)
+		midi input maps parameter,
+		K2 deletes map
+		K3 exits
 	K1 + K3 saves mappings
 	K1 + K2 loads mappings
 

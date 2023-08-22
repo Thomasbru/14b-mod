@@ -280,7 +280,7 @@ local midi_event = _norns.midi.event
 
 function _norns.midi.event(id, data)
   midi_event(id, data)
-  if id == midi_device then 
+  if id == midi_devices[current_midi_device] then 
     local d = midi.to_msg(data)
     n.msghandler(d)
   end

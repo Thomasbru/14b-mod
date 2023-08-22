@@ -114,8 +114,12 @@ end
 -- KEY FUNCTIONS
 -- K1 + K2 loads map
 -- K1 + K3 saves map
--- K3 puts mod in "learn mode"
+-- K3 puts mod in "map mode"
 -- K2 exits
+-- In map_mode
+--  K3 exits
+--  K2 removes map
+--  Midi maps
 n.key = function(k, z)
   if k == 1 then
     save_mode = z
@@ -137,6 +141,10 @@ n.key = function(k, z)
       map_mode = false
     end
   elseif k == 3 and z == 0 then
+    n.redraw()
+  elseif k == 2 and z == 1 and map_mode == true then
+    n.removemap()
+    map_mode = false
     n.redraw()
   elseif k == 2 and z == 1 then
     -- return to the mod selection menu
@@ -288,6 +296,14 @@ function n.generate_table(channels)
   return table
 end
 
+function n.removemap()
+  for j, k in pairs(mapped) do
+    if k == p_index then
+      mapped[j] = nil
+    end
+  end
+end
+
 
 function n.msghandler(d)
   -- if map_mode = true, maps next midi msb to param
@@ -297,11 +313,7 @@ function n.msghandler(d)
   if d.type == "cc" then
     if map_mode == true then
       -- map selected param to midi channel
-      for j, k in pairs(mapped) do
-        if k == p_index then
-          mapped[j] = nil
-        end
-      end
+      n.removemap()
       mapped[d.cc] = p_index
       map_mode = false
       n.redraw()

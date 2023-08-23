@@ -29,6 +29,8 @@ in script
   
  (Teensy LC can for instance only poll 12 bit values from encoder)
 
+ **Script expects midi messages being sent in the order of MSB, then LSB**
+
 # control:
 	from mod menu,
 	E3 changes parameter

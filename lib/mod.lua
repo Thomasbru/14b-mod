@@ -56,13 +56,13 @@ local mapped = {} --empty map, should be able to be saved and loaded upon script
 mod.hook.register("system_post_startup", "list_generation", function()
   midi_table = n.generate_table(midi_channels)
   current_script = "none"
-  local loaded_midi_device
+--  local loaded_midi_device
   if util.file_exists(_path.data .. "14b-mod/midi_device.txt") then
-    loaded_midi_device = n.load_midi_device()
+    current_midi_device = n.load_midi_device()
   else
-    loaded_midi_device = 2
+    current_midi_device = 1
   end
-  n.get_midi_devices(loaded_midi_device)
+--  n.get_midi_devices(loaded_midi_device)
 end)
 
 mod.hook.register("script_pre_init", "param_grab", function()
@@ -104,7 +104,7 @@ n.enc = function(e, d)
     if e == 3 then
       p_index = util.clamp(p_index + d, 1, #p_list)
     elseif e == 2 then
-      current_midi_device = util.clamp(current_midi_device + d, 1, #midi_devices)
+      current_midi_device = util.clamp(current_midi_device + d, 1, #midi.vports)
     end
     n.redraw()
   end
@@ -168,8 +168,7 @@ n.redraw = function()
   screen.level(15)
   screen.text("params/")
   screen.move(128, 5)
-  local midi_index = midi_devices[current_midi_device]
-  screen.text_right("midi/" .. midi.devices[midi_index].name)
+  screen.text_right("midi/" .. midi.vports[current_midi_device].name)
   -- list all params
   for i = 0, 5 do
     screen.move(0, 20 + (10*i))
@@ -280,7 +279,7 @@ local midi_event = _norns.midi.event
 
 function _norns.midi.event(id, data)
   midi_event(id, data)
-  if id == midi_devices[current_midi_device] then 
+  if id == midi.vports[current_midi_device].id then -- CHECK WHAT HAPPENS IF id == nil
     local d = midi.to_msg(data)
     n.msghandler(d)
   end
@@ -331,7 +330,7 @@ function n.msghandler(d)
 		end
 	end
 end
-
+--[[
 function n.get_midi_devices(lmd)
   for n, j in pairs(midi.devices) do
     table.insert(midi_devices, n)
@@ -343,7 +342,7 @@ function n.get_midi_devices(lmd)
     current_midi_device = 1
   end
 end
-
+--]]
 
 function n.load_midi_device()
   local md = tab.load(_path.data .. "14b-mod/midi_device.txt")
@@ -352,7 +351,7 @@ end
 
 function n.save_midi_device()
   local md = {}
-  md[1] = midi_devices[current_midi_device]
+  md[1] = current_midi_device
   tab.save(md, _path.data .. "14b-mod/midi_device.txt")
 end
 

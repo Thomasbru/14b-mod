@@ -11,6 +11,7 @@ in script
  currently hardcoded from bleached alternate firmware,
  hosted at https://github.com/Thomasbru/bleached
  table is generated in code as
+ 
  	local midi_channels = {
   		{102, 103},
   		{104, 105},
@@ -20,9 +21,12 @@ in script
   		{112, 113},
   		{114, 115}
 	}
+ 
  bit reduction can also be changed, to reflect the true resolution from device, not upscaled one
  this is done in
+ 
  	local BIT_RESOLUTION = 12 -- 7 to 14 should be valid.
+  
  (Teensy LC can for instance only poll 12 bit values from encoder)
 
 # control:

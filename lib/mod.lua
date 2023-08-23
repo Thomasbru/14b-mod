@@ -40,7 +40,6 @@ local p_index = 1 -- current index of p_list
 
 -- some variables
 local current_midi_device
-local midi_devices = {}
 local max_bits = 1 << BIT_RESOLUTION
 local map_mode = false
 local save_mode = 0
@@ -56,13 +55,11 @@ local mapped = {} --empty map, should be able to be saved and loaded upon script
 mod.hook.register("system_post_startup", "list_generation", function()
   midi_table = n.generate_table(midi_channels)
   current_script = "none"
---  local loaded_midi_device
   if util.file_exists(_path.data .. "14b-mod/midi_device.txt") then
     current_midi_device = n.load_midi_device()
   else
     current_midi_device = 1
   end
---  n.get_midi_devices(loaded_midi_device)
 end)
 
 mod.hook.register("script_pre_init", "param_grab", function()

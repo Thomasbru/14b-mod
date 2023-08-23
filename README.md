@@ -4,13 +4,26 @@ norns mod for mapping 14-bit midi to params
 usage: takes up to 14 bits of midi (2 channels) and maps them to general and script specific parameters
 
 # setup:
-	in script
-	change function/table generating MSB - LSB list to match your midi device
-	currently hardcoded from bleached alternate firmware,
-	hosted at https://github.com/Thomasbru/bleached
+in script
 
-	bit reduction can also be changed, to reflect the true resolution from device
-	(Teensy LC can for instance only poll 12 bit values from encoder)
+ 
+ change function/table generating MSB - LSB list to match your midi device
+ currently hardcoded from bleached alternate firmware,
+ hosted at https://github.com/Thomasbru/bleached
+ table is generated in code as
+ 	local midi_channels = {
+  		{102, 103},
+  		{104, 105},
+  		{106, 107},
+  		{108, 109},
+  		{110, 111},
+  		{112, 113},
+  		{114, 115}
+	}
+ bit reduction can also be changed, to reflect the true resolution from device, not upscaled one
+ this is done in
+ 	local BIT_RESOLUTION = 12 -- 7 to 14 should be valid.
+ (Teensy LC can for instance only poll 12 bit values from encoder)
 
 # control:
 	from mod menu,

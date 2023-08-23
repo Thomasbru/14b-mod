@@ -279,7 +279,8 @@ local midi_event = _norns.midi.event
 
 function _norns.midi.event(id, data)
   midi_event(id, data)
-  if id == midi.vports[current_midi_device].id then -- CHECK WHAT HAPPENS IF id == nil
+  local current_id = midi.vports[current_midi_device].device
+  if current_id and id == current_id.id then
     local d = midi.to_msg(data)
     n.msghandler(d)
   end
@@ -330,19 +331,6 @@ function n.msghandler(d)
 		end
 	end
 end
---[[
-function n.get_midi_devices(lmd)
-  for n, j in pairs(midi.devices) do
-    table.insert(midi_devices, n)
-    if midi.devices[n].id == lmd then
-      current_midi_device = #midi_devices
-    end
-  end
-  if current_midi_device == nil then
-    current_midi_device = 1
-  end
-end
---]]
 
 function n.load_midi_device()
   local md = tab.load(_path.data .. "14b-mod/midi_device.txt")
